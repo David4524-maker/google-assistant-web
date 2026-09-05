@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Assistant (Math + Local DB + Live Web API)</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Google Sans', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      background-color: #000000;
+      color: #e8eaed;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: flex-end;
+      overflow: hidden;
+    }
+
+    .assistant-card {
+      width: 100%;
+      max-width: 500px;
+      height: 92vh;
+      background: #171717;
+      border-top-left-radius: 28px;
+      border-top-right-radius: 28px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-bottom: none;
+      overflow: hidden;
+    }
+
+    .header {
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .header-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .google-icon {
+      width: 24px;
+      height: 24px;
+    }
+
+    .badge {
+      background: rgba(66, 133, 244, 0.15);
+      color: #8ab4f8;
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-weight: 500;
+      border: 1px solid rgba(138, 180, 248, 0.3);
+    }
+
+    .profile-icon {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: #8ab4f8;
+      color: #202124;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .chat-container {
+      flex: 1;
+      padding: 16px 24px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .msg {
+      max-width: 85%;
+      font-size: 14.5px;
+      line-height: 1.45;
+      border-radius: 20px;
+      padding: 12px 16px;
+      animation: fadeIn 0.25s ease-out;
+      word-break: break-word;
+    }
+
+    .msg.assistant {
+      align-self: flex-start;
+      background: #282a2d;
+      color: #e8eaed;
+      border-bottom-left-radius: 4px;
+    }
+
+    .msg.user {
+      align-self: flex-end;
+      background: #3c4043;
+      color: #ffffff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .dots-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+      height: 28px;
+      margin-bottom: 6px;
+    }
+
+    .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      transition: transform 0.2s ease;
+    }
+
+    .dot-blue   { background-color: #4285F4; }
+    .dot-red    { background-color: #EA4335; }
+    .dot-yellow { background-color: #FBBC05; }
+    .dot-green  { background-color: #34A853; }
+
+    .dots-container.listening .dot {
+      animation: bounce 1.2s infinite ease-in-out;
+    }
+
+    .dots-container.listening .dot-blue   { animation-delay: 0.0s; }
+    .dots-container.listening .dot-red    { animation-delay: 0.15s; }
+    .dots-container.listening .dot-yellow { animation-delay: 0.30s; }
+    .dots-container.listening .dot-green  { animation-delay: 0.45s; }
+
+    @keyframes bounce {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-10px); }
+    }
+
+    .chips-container {
+      display: flex;
+      gap: 8px;
+      padding: 0 24px 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .chips-container::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      background: #282a2d;
+      border: 1px solid #3c4043;
+      color: #e8eaed;
+      padding: 7px 14px;
+      border-radius: 20px;
+      font-size: 12.5px;
+      white-space: nowrap;
+      cursor: pointer;
+      transition: background 0.2s, border-color 0.2s;
+    }
+
+    .chip:hover {
+      background: #3c4043;
+      border-color: #8ab4f8;
+    }
+
+    .input-bar {
+      padding: 10px 24px 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #171717;
+    }
+
+    .input-field {
+      flex: 1;
+      background: #282a2d;
+      border: 1px solid #3c4043;
+      border-radius: 24px;
+      padding: 12px 18px;
+      color: #ffffff;
+      font-size: 14px;
+      outline: none;
+    }
+
+    .input-field::placeholder {
+      color: #9aa0a6;
+    }
+
+    .btn-icon {
+      background: #282a2d;
+      border: none;
+      width: 42px;
+      height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #e8eaed;
+      transition: background 0.2s;
+      flex-shrink: 0;
+    }
+
+    .btn-icon:hover {
+      background: #3c4043;
+    }
+
+    .btn-mic {
+      background: #303134;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="assistant-card">
+    <div class="header">
+      <div class="header-left">
+        <svg class="google-icon" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+        </svg>
+        <span class="badge">Búsqueda Web en Vivo</span>
+      </div>
+      <div class="profile-icon">G</div>
+    </div>
+
+    <div class="chat-container" id="chatContainer">
+      <div class="msg assistant">¡Hola! Soy tu Asistente de Google. Ahora estoy conectado a Internet en vivo: pregúntame cualquier dato histórico, científico, celebridad o concepto del mundo.</div>
+    </div>
+
+    <div class="dots-container" id="dotsContainer">
+      <div class="dot dot-blue"></div>
+      <div class="dot dot-red"></div>
+      <div class="dot dot-yellow"></div>
+      <div class="dot dot-green"></div>
+    </div>
+
+    <div class="chips-container">
+      <div class="chip" onclick="sendChip('¿Quién fue Albert Einstein?')">🌐 Albert Einstein</div>
+      <div class="chip" onclick="sendChip('¿Qué es la fotosíntesis?')">🌐 Fotosíntesis</div>
+      <div class="chip" onclick="sendChip('Cuanto es 15 * 12')">🧮 15 * 12</div>
+      <div class="chip" onclick="sendChip('¿Qué es EZScript?')">💻 EZScript</div>
+    </div>
+
+    <div class="input-bar">
+      <input type="text" class="input-field" id="userInput" placeholder="Pregunta lo que sea en vivo..." onkeypress="handleKeyPress(event)">
+      <button class="btn-icon btn-mic" id="micBtn" onclick="toggleVoiceInput()" title="Micrófono">🎤</button>
+      <button class="btn-icon" onclick="sendMessage()" title="Enviar">➤</button>
+    </div>
+  </div>
+
+  <script>
+    const chatContainer = document.getElementById('chatContainer');
+    const userInput = document.getElementById('userInput');
+    const dotsContainer = document.getElementById('dotsContainer');
+    let isListening = false;
+
+    // BASE DE DATOS LOCAL (RESPUESTAS RÁPIDAS Y PERSONALIZADAS)
+    const knowledgeBase = [
+      { keys: ["hola", "buenas", "que tal", "saludos"], resp: "¡Hola! Qué gusto saludarte. ¿En qué puedo ayudarte hoy?" },
+      { keys: ["como estas", "cómo estás"], resp: "¡Excelente! Funcionando al 100% y conectado a la red." },
+      { keys: ["gracias", "muchas gracias"], resp: "¡De nada! Siempre es un placer." },
+      { keys: ["adios", "hasta luego", "chao"], resp: "¡Hasta luego! Que tengas un gran día." },
+      { keys: ["ezscript", "ez script"], resp: "EZScript es un lenguaje de programación fácil de aprender creado en Python, ideal para principiantes." },
+      { keys: ["python"], resp: "Python es un lenguaje de programación potente, limpio y muy popular en IA y ciencia de datos." },
+      { keys: ["chiste", "cuentame un chiste"], resp: "¿Qué le dice un GIF a otro GIF? ¡Anímate!" },
+      { keys: ["hora", "que hora es"], resp: () => `🕒 Son las ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}.` },
+      { keys: ["fecha", "que dia es hoy"], resp: () => `📅 Hoy es ${new Date().toLocaleDateString('es-ES', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.` }
+    ];
+
+    // MOTOR MATEMÁTICO
+    function evaluateMath(expression) {
+      let sanitized = expression.toLowerCase()
+        .replace(/más|mas/g, '+')
+        .replace(/menos/g, '-')
+        .replace(/por|x/g, '*')
+        .replace(/entre|dividido por|dividido/g, '/')
+        .replace(/elevado a|\^/g, '**')
+        .replace(/por ciento|%/g, '/100')
+        .replace(/[^0-9\+\-\*\/\%\(\)\.\s]/g, '');
+
+      if (!sanitized.trim()) return null;
+
+      try {
+        const result = Function(`"use strict"; return (${sanitized})`)();
+        if (typeof result === 'number' && !isNaN(result) && isFinite(result)) {
+          return result;
+        }
+      } catch (e) {
+        return null;
+      }
+      return null;
+    }
+
+    // BÚSQUEDA WEB EN VIVO (API WIKIPEDIA)
+    async function searchLiveWeb(query) {
+      const cleanQuery = query
+        .replace(/qué es|que es|quién fue|quien fue|quién es|quien es|cuándo fue|cuando fue|busca|dime sobre|información de|informacion de/gi, '')
+        .trim();
+
+      try {
+        const searchUrl = `https://es.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(cleanQuery)}&format=json&origin=*`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+
+        if (searchData.query && searchData.query.search.length > 0) {
+          const pageTitle = searchData.query.search[0].title;
+          const summaryUrl = `https://es.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(pageTitle)}`;
+          const summaryRes = await fetch(summaryUrl);
+          const summaryData = await summaryRes.json();
+
+          if (summaryData.extract) {
+            return summaryData.extract;
+          }
+        }
+      } catch (error) {
+        console.error("Error consultando la red:", error);
+      }
+      return null;
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'es-ES';
+        utterance.rate = 1.0;
+        
+        utterance.onstart = () => dotsContainer.classList.add('listening');
+        utterance.onend = () => dotsContainer.classList.remove('listening');
+        
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+
+    function addMessage(text, sender) {
+      const msg = document.createElement('div');
+      msg.className = `msg ${sender}`;
+      msg.textContent = text;
+      chatContainer.appendChild(msg);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    async function processQuery(query) {
+      addMessage(query, 'user');
+      dotsContainer.classList.add('listening');
+      const q = query.toLowerCase().trim();
+
+      // 1. EVALUAR MATEMÁTICAS
+      const isMath = q.includes("cuanto es") || q.includes("cuánto es") || q.startsWith("mate:") || q.startsWith("resuelve") || q.includes("resuelve");
+      if (isMath) {
+        let mathPart = q.replace(/cuanto es|cuánto es|mate:|resuelve/gi, '').replace(/[\?\¿\¡\!]/g, '').trim();
+        const mathResult = evaluateMath(mathPart);
+        const resp = mathResult !== null ? `🧮 El resultado es: ${mathResult}` : `Escribe una operación válida (Ej: "Cuanto es 50 * 4").`;
+        addMessage(resp, 'assistant');
+        speak(resp);
+        dotsContainer.classList.remove('listening');
+        return;
+      }
+
+      // 2. BUSCAR EN RESPUESTAS LOCALES
+      for (let item of knowledgeBase) {
+        if (item.keys.some(k => q.includes(k))) {
+          const resp = typeof item.resp === 'function' ? item.resp() : item.resp;
+          addMessage(resp, 'assistant');
+          speak(resp);
+          dotsContainer.classList.remove('listening');
+          return;
+        }
+      }
+
+      // 3. CONSULTAR LA WEB EN VIVO (RESPONDE ABSOLUTAMENTE CUALQUIER TEMA)
+      const webResult = await searchLiveWeb(query);
+      dotsContainer.classList.remove('listening');
+
+      if (webResult) {
+        addMessage(webResult, 'assistant');
+        speak(webResult);
+      } else {
+        const fallback = `No encontré datos exactos para "${query}". Intenta preguntándome sobre personas, lugares, inventos, ciencia o hazme una operación matemática.`;
+        addMessage(fallback, 'assistant');
+        speak(fallback);
+      }
+    }
+
+    function sendMessage() {
+      const text = userInput.value.trim();
+      if (!text) return;
+      userInput.value = '';
+      processQuery(text);
+    }
+
+    function sendChip(text) {
+      processQuery(text);
+    }
+
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') sendMessage();
+    }
+
+    function toggleVoiceInput() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      
+      if (!SpeechRecognition) {
+        alert("Tu navegador no permite entrada por micrófono en este entorno.");
+        return;
+      }
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'es-ES';
+
+      if (!isListening) {
+        recognition.start();
+        dotsContainer.classList.add('listening');
+        isListening = true;
+
+        recognition.onresult = (event) => {
+          const transcript = event.results[0][0].transcript;
+          userInput.value = transcript;
+          sendMessage();
+        };
+
+        recognition.onerror = () => {
+          dotsContainer.classList.remove('listening');
+          isListening = false;
+        };
+
+        recognition.onend = () => {
+          dotsContainer.classList.remove('listening');
+          isListening = false;
+        };
+      }
+    }
+  </script>
+</body>
+</html>
